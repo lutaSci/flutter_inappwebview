@@ -296,10 +296,6 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate,
                     if contextMenuSettings.hideDefaultSystemContextMenuItems {
                         builder.remove(menu: .lookup)
                         builder.remove(menu: .share)
-                        let wkWebViewConfig = WKWebViewConfiguration()
-                        if #available(iOS 18.0, *) {
-                            wkWebViewConfig.writingToolsBehavior = UIWritingToolsBehavior.none
-                        }
                     }
                 }
             }
@@ -662,6 +658,9 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate,
         // initialzie WKUserContentController here to fix possible "undefined is not an object (evaluating 'window.webkit.messageHandlers')" javascript error
         configuration.userContentController = WKUserContentController()
         configuration.processPool = WKProcessPoolManager.sharedProcessPool
+        if #available(iOS 18.0, *) {
+            configuration.writingToolsBehavior = UIWritingToolsBehavior.none
+        }
         
         if let settings = settings {
             configuration.allowsInlineMediaPlayback = settings.allowsInlineMediaPlayback
