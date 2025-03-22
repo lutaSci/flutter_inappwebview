@@ -296,6 +296,10 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate,
                     if contextMenuSettings.hideDefaultSystemContextMenuItems {
                         builder.remove(menu: .lookup)
                         builder.remove(menu: .share)
+                        let wkWebViewConfig = WKWebViewConfiguration()
+                        if #available(iOS 18.0, *) {
+                            wkWebViewConfig.writingToolsBehavior = UIWritingToolsBehavior.none
+                        }
                     }
                 }
             }
