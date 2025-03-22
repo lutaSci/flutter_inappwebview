@@ -299,13 +299,14 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate,
                     }
                 }
             }
-            
-            if #unavailable(iOS 16.4), settings?.disableContextMenu == false {
-                contextMenuIsShowing = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                    self.onCreateContextMenu()
-                }
+          
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                self.onCreateContextMenu()
             }
+          
+            // if #unavailable(iOS 16.4), settings?.disableContextMenu == false {
+            //     contextMenuIsShowing = false
+            // }
         }
         super.buildMenu(with: builder)
     }
