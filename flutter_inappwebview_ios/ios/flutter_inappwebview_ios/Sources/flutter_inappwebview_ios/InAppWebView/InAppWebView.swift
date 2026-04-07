@@ -321,24 +321,23 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate,
     }
     
     public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if settings?.disableContextMenu == true {
+            if !onCreateContextMenuEventTriggeredWhenMenuDisabled {
+                onCreateContextMenu()
+                onCreateContextMenuEventTriggeredWhenMenuDisabled = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.onCreateContextMenuEventTriggeredWhenMenuDisabled = false
+                }
+            }
+            return false
+        }
+        
         var needCheck = sender is UIMenuController
         if #available(iOS 13.0, *) {
             needCheck = sender is UIMenuElement || sender is UIMenuController
         }
         
         if needCheck {
-            if settings?.disableContextMenu == true {
-                if !onCreateContextMenuEventTriggeredWhenMenuDisabled {
-                    // workaround to trigger onCreateContextMenu event as the same on Android
-                    onCreateContextMenu()
-                    onCreateContextMenuEventTriggeredWhenMenuDisabled = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.onCreateContextMenuEventTriggeredWhenMenuDisabled = false
-                    }
-                }
-                return false
-            }
-            
             if let menu = contextMenu {
                 let contextMenuSettings = ContextMenuSettings()
                 if let contextMenuSettingsMap = menu["settings"] as? [String: Any?] {
