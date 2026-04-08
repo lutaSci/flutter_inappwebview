@@ -287,6 +287,23 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate,
     
     @available(iOS 13.0, *)
     public override func buildMenu(with builder: UIMenuBuilder) {
+        if settings?.disableContextMenu == true {
+            builder.remove(menu: .standardEdit)
+            builder.remove(menu: .lookup)
+            builder.remove(menu: .share)
+            builder.remove(menu: .learn)
+            builder.remove(menu: .format)
+            builder.remove(menu: .textStyle)
+            builder.remove(menu: .spelling)
+            builder.remove(menu: .speech)
+            builder.remove(menu: .find)
+            builder.remove(menu: .replace)
+            if #available(iOS 16.0, *) {
+                builder.remove(menu: .autoFill)
+            }
+            return
+        }
+        
         if #available(iOS 16.0, *) {
             if let menu = contextMenu {
                 let contextMenuSettings = ContextMenuSettings()
@@ -298,14 +315,6 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate,
                     }
                 }
             }
-          
-            // DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            //     self.onCreateContextMenu()
-            // }
-          
-            // if #unavailable(iOS 16.4), settings?.disableContextMenu == false {
-            //     contextMenuIsShowing = false
-            // }
         }
         super.buildMenu(with: builder)
     }
