@@ -7,7 +7,80 @@
 
 import Flutter
 import Foundation
+import ObjectiveC
 @preconcurrency import WebKit
+
+// MARK: - WKContentView Method Swizzle for disableContextMenu
+
+private var _wkContentViewSwizzleApplied = false
+
+/// On iOS 16+, UIEditMenuInteraction is owned by WKContentView (private).
+/// WKContentView is the first responder during text selection, so it handles
+/// canPerformAction / buildMenu internally — our InAppWebView overrides never fire.
+/// This swizzle patches WKContentView at runtime so it respects disableContextMenu.
+private func applyWKContentViewContextMenuSwizzle() {
+    guard !_wkContentViewSwizzleApplied else { return }
+    _wkContentViewSwizzleApplied = true
+
+    guard let wkContentViewClass = NSClassFromString("WKContentView") else { return }
+
+    // --- Swizzle canPerformAction:withSender: ---
+    let canPerformSel = #selector(UIResponder.canPerformAction(_:withSender:))
+    guard let canPerformMethod = class_getInstanceMethod(wkContentViewClass, canPerformSel) else { return }
+    let originalCanPerformIMP = method_getImplementation(canPerformMethod)
+
+    let canPerformBlock: @convention(block) (AnyObject, Selector, Any?) -> Bool = { obj, action, sender in
+        if let view = obj as? UIView {
+            var parent = view.superview
+            while let p = parent {
+                if let webView = p as? InAppWebView,
+                   webView.settings?.disableContextMenu == true {
+                    return false
+                }
+                parent = p.superview
+            }
+        }
+        typealias F = @convention(c) (AnyObject, Selector, Selector, Any?) -> Bool
+        return unsafeBitCast(originalCanPerformIMP, to: F.self)(obj, canPerformSel, action, sender)
+    }
+    method_setImplementation(canPerformMethod, imp_implementationWithBlock(canPerformBlock))
+
+    // --- Swizzle buildMenu(with:) (iOS 13+) ---
+    if #available(iOS 13.0, *) {
+        let buildMenuSel = #selector(UIResponder.buildMenu(with:))
+        guard let buildMenuMethod = class_getInstanceMethod(wkContentViewClass, buildMenuSel) else { return }
+        let originalBuildMenuIMP = method_getImplementation(buildMenuMethod)
+
+        let buildMenuBlock: @convention(block) (AnyObject, UIMenuBuilder) -> Void = { obj, builder in
+            if let view = obj as? UIView {
+                var parent = view.superview
+                while let p = parent {
+                    if let webView = p as? InAppWebView,
+                       webView.settings?.disableContextMenu == true {
+                        builder.remove(menu: .standardEdit)
+                        builder.remove(menu: .lookup)
+                        builder.remove(menu: .share)
+                        builder.remove(menu: .learn)
+                        builder.remove(menu: .format)
+                        builder.remove(menu: .textStyle)
+                        builder.remove(menu: .spelling)
+                        builder.remove(menu: .speech)
+                        builder.remove(menu: .find)
+                        builder.remove(menu: .replace)
+                        if #available(iOS 16.0, *) {
+                            builder.remove(menu: .autoFill)
+                        }
+                        return
+                    }
+                    parent = p.superview
+                }
+            }
+            typealias F = @convention(c) (AnyObject, Selector, UIMenuBuilder) -> Void
+            unsafeBitCast(originalBuildMenuIMP, to: F.self)(obj, buildMenuSel, builder)
+        }
+        method_setImplementation(buildMenuMethod, imp_implementationWithBlock(buildMenuBlock))
+    }
+}
 
 public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate,
                             WKNavigationDelegate, WKScriptMessageHandler, UIGestureRecognizerDelegate,
@@ -321,6 +394,24 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate,
     
     @available(iOS 16.4, *)
     public func webView(_ webView: WKWebView, willPresentEditMenuWithAnimator animator: UIEditMenuInteractionAnimating) {
+        if settings?.disableContextMenu == true {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                if #available(iOS 16.0, *) {
+                    for subview in self.scrollView.subviews {
+                        if String(describing: type(of: subview)).contains("WKContentView") {
+                            for interaction in subview.interactions {
+                                if let editMenu = interaction as? UIEditMenuInteraction {
+                                    editMenu.dismissMenu()
+                                }
+                            }
+                            break
+                        }
+                    }
+                }
+            }
+            return
+        }
         onCreateContextMenu()
     }
     
@@ -384,6 +475,8 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate,
     }
 
     public func prepare() {
+        applyWKContentViewContextMenuSwizzle()
+        
         if #available(iOS 17.2, *) {
             // Fix https://github.com/pichillilorenzo/flutter_inappwebview/issues/1947
             NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(notification:)),
