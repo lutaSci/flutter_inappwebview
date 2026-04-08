@@ -224,7 +224,7 @@ enum WKMenuDebug {
                             builder.remove(menu: .speech)
                             builder.remove(menu: .find)
                             builder.remove(menu: .replace)
-                            if #available(iOS 16.0, *) {
+                            if #available(iOS 17.0, *) {
                                 builder.remove(menu: .autoFill)
                             }
                             return
