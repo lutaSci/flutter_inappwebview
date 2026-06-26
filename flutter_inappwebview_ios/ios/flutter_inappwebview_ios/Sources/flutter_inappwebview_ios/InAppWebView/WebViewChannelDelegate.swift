@@ -80,10 +80,15 @@ public class WebViewChannelDelegate: ChannelDelegate {
             break
         case .evaluateJavascript:
             if let webView = webView {
-                let source = arguments!["source"] as! String
-                let contentWorldMap = arguments!["contentWorld"] as? [String:Any?]
-                if #available(iOS 14.0, *), let contentWorldMap = contentWorldMap {
-                    let contentWorld = WKContentWorld.fromMap(map: contentWorldMap, windowId: webView.windowId)!
+                // TASK-006: source 安全解析；contentWorld 解析失败时 fallback 到
+                // 默认 page world（不再 `fromMap(...)!` 强制解包）。
+                guard let source = arguments?["source"] as? String else {
+                    result(["value": nil, "error": "invalid_source"])
+                    break
+                }
+                let contentWorldMap = arguments?["contentWorld"] as? [String:Any?]
+                if #available(iOS 14.0, *), let contentWorldMap = contentWorldMap,
+                   let contentWorld = WKContentWorld.fromMap(map: contentWorldMap, windowId: webView.windowId) {
                     webView.evaluateJavascript(source: source, contentWorld: contentWorld) { (value) in
                         result(value)
                     }
@@ -432,26 +437,30 @@ public class WebViewChannelDelegate: ChannelDelegate {
             break
         case .callAsyncJavaScript:
             if let webView = webView, #available(iOS 10.3, *) {
+                // TASK-006: 去掉 functionBody/arguments/contentWorld 的强制转换/解包，
+                // malformed payload 返回结构化错误而非 native crash；completion 只回调一次。
+                guard let functionBody = arguments?["functionBody"] as? String else {
+                    result(["value": nil, "error": "invalid_function_body"])
+                    break
+                }
+                let functionArguments = (arguments?["arguments"] as? [String:Any]) ?? [:]
                 if #available(iOS 14.3, *) { // on iOS 14.0, for some reason, it crashes
-                    let functionBody = arguments!["functionBody"] as! String
-                    let functionArguments = arguments!["arguments"] as! [String:Any]
                     var contentWorld = WKContentWorld.page
-                    if let contentWorldMap = arguments!["contentWorld"] as? [String:Any?] {
-                        contentWorld = WKContentWorld.fromMap(map: contentWorldMap, windowId: webView.windowId)!
+                    if let contentWorldMap = arguments?["contentWorld"] as? [String:Any?],
+                       let parsedContentWorld = WKContentWorld.fromMap(map: contentWorldMap, windowId: webView.windowId) {
+                        contentWorld = parsedContentWorld
                     }
                     webView.callAsyncJavaScript(functionBody: functionBody, arguments: functionArguments, contentWorld: contentWorld) { (value) in
                         result(value)
                     }
                 } else {
-                    let functionBody = arguments!["functionBody"] as! String
-                    let functionArguments = arguments!["arguments"] as! [String:Any]
                     webView.callAsyncJavaScript(functionBody: functionBody, arguments: functionArguments) { (value) in
                         result(value)
                     }
                 }
             }
             else {
-                result(nil)
+                result(["value": nil, "error": "webview_unavailable"])
             }
             break
         case .createPdf:

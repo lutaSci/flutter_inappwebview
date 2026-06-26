@@ -30,7 +30,12 @@ extension WKContentWorld {
         guard let map = map else {
             return nil
         }
-        var name = map["name"] as! String
+        // TASK-006: 不再 `as! String` 强制转换。malformed channel payload
+        // (name 缺失/非 String/为空) 时返回 nil，由调用方 fallback 到
+        // WKContentWorld.page，避免历史 TestFlight 的 native crash。
+        guard var name = map["name"] as? String, !name.isEmpty else {
+            return nil
+        }
         name = windowId != nil && name != "page" ?
             WKUserContentController.WINDOW_ID_PREFIX + String(windowId!) + "-" + name :
             name
