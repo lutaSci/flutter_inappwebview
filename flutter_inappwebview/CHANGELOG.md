@@ -1,3 +1,7 @@
+## 公司 fork（未发布）
+
+- 修复 InAppWebView 同一 State 重建后释放错误 platform 的问题，保持实际原生视图与 controller 的所有权和销毁责任一致（TASK-126 / N3）。
+
 ## 6.2.0-beta.3
 
 - Added Linux support

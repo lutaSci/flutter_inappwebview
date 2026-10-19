@@ -911,14 +911,18 @@ class InAppWebView extends StatefulWidget {
 }
 
 class _InAppWebViewState extends State<InAppWebView> {
+  // The platform owns the controller created for this State's native view.
+  // Parent rebuilds create new Widgets, but do not recreate that native view.
+  late final PlatformInAppWebViewWidget _platform = widget.platform;
+
   @override
   Widget build(BuildContext context) {
-    return widget.platform.build(context);
+    return _platform.build(context);
   }
 
   @override
   void dispose() {
-    widget.platform.dispose();
+    _platform.dispose();
     super.dispose();
   }
 }
